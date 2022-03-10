@@ -27,6 +27,7 @@ rec {
     assert !(dependency ? resolved) -> throw "Missing `resolved` attribute for dependency `${name}`.";
     assert !(dependency ? integrity) -> throw "Missing `integrity` attribute for dependency `${name}`.";
     {
+      name = lib.strings.sanitizeDerivationName (name + ".tgz");
       url = dependency.resolved;
       # FIXME: for backwards compatibility we should probably set the
       #        `sha1`, `sha256`, `sha512` … attributes depending on the string
