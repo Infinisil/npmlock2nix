@@ -144,7 +144,8 @@ rec {
   makeSource = sourceHashFunc: name: dependency:
     assert (builtins.typeOf name != "string") ->
       throw "Name of dependency ${toString name} must be a string";
-    assert (builtins.typeOf dependency != "set") ->
+    if name == "" || ! builtins.isAttrs dependency then dependency
+    else assert (builtins.typeOf dependency != "set") ->
       throw "Specification of dependency ${toString name} must be a set";
     if dependency ? resolved && dependency ? integrity then
       dependency // { resolved = "file://" + (toString (fetchurl (makeSourceAttrs name dependency))); }
@@ -195,8 +196,6 @@ rec {
   patchDependency = sourceHashFunc: name: spec:
     assert (builtins.typeOf name != "string") ->
       throw "Name of dependency ${toString name} must be a string";
-    assert (builtins.typeOf spec != "set") ->
-      throw "spec of dependency ${toString name} must be a set";
     let
       isBundled = spec ? bundled && spec.bundled == true;
       hasGitHubRequires = spec: (spec ? requires) && (lib.any (x: lib.hasPrefix "github:" x) (lib.attrValues spec.requires));
@@ -208,7 +207,12 @@ rec {
       # - `resolved` set to a path in the nix store (`patchSource`)
       # - All `requires` entries of this dependency that are set to github URLs set to a path in the nix store (`patchRequiresSources`)
       # - This needs to be done recursively for all `dependencies` in the lockfile (`patchDependenciesSources`)
-    (spec // patchSource // patchRequiresSources // patchDependenciesSources);
+    if ! builtins.isAttrs spec then
+      spec
+    else
+      assert (builtins.typeOf spec != "set") ->
+        throw "spec of dependency ${toString name} must be a set";
+      (spec // patchSource // patchRequiresSources // patchDependenciesSources);
 
   # Description: Takes a Path to a lockfile and returns the patched version as attribute set
   # Type: Fn -> Path -> Set
@@ -218,6 +222,7 @@ rec {
     let content = readLockfile file; in
     content // {
       dependencies = lib.mapAttrs (patchDependency sourceHashFunc) content.dependencies;
+      packages = lib.mapAttrs (patchDependency sourceHashFunc) content.packages;
     };
 
   # Description: Rewrite all the `github:` references to wildcards.
